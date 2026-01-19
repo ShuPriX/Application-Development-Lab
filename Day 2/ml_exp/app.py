@@ -99,21 +99,46 @@ def load_cat_dog_models():
             )
             print("  ✅ Loaded transfer learning model")
         
-        # Check for traditional ML models
+        # Check for enhanced models (Deep Features + ML)
+        if os.path.exists(os.path.join(MODELS_FOLDER, 'catdog_svm_enhanced.joblib')):
+            import joblib
+            cat_dog_models['svm_enhanced'] = joblib.load(
+                os.path.join(MODELS_FOLDER, 'catdog_svm_enhanced.joblib')
+            )
+            print("  ✅ Loaded SVM Enhanced model (MobileNetV2 features)")
+        
+        if os.path.exists(os.path.join(MODELS_FOLDER, 'catdog_rf_enhanced.joblib')):
+            import joblib
+            cat_dog_models['rf_enhanced'] = joblib.load(
+                os.path.join(MODELS_FOLDER, 'catdog_rf_enhanced.joblib')
+            )
+            print("  ✅ Loaded Random Forest Enhanced model (MobileNetV2 features)")
+        
+        # Check for traditional ML models (old versions)
         if os.path.exists(os.path.join(MODELS_FOLDER, 'cat_dog_svm.pkl')):
             with open(os.path.join(MODELS_FOLDER, 'cat_dog_svm.pkl'), 'rb') as f:
                 cat_dog_models['svm'] = pickle.load(f)
-            print("  ✅ Loaded SVM model")
+            print("  ✅ Loaded SVM model (basic)")
         
         if os.path.exists(os.path.join(MODELS_FOLDER, 'cat_dog_rf.pkl')):
             with open(os.path.join(MODELS_FOLDER, 'cat_dog_rf.pkl'), 'rb') as f:
                 cat_dog_models['random_forest'] = pickle.load(f)
-            print("  ✅ Loaded Random Forest model")
+            print("  ✅ Loaded Random Forest model (basic)")
                 
         if os.path.exists(os.path.join(MODELS_FOLDER, 'scaler.pkl')):
             with open(os.path.join(MODELS_FOLDER, 'scaler.pkl'), 'rb') as f:
                 cat_dog_models['scaler'] = pickle.load(f)
             print("  ✅ Loaded feature scaler")
+        
+        # Load MobileNetV2 feature extractor for enhanced models
+        if 'svm_enhanced' in cat_dog_models or 'rf_enhanced' in cat_dog_models:
+            cat_dog_models['feature_extractor'] = MobileNetV2(
+                weights='imagenet',
+                include_top=False,
+                pooling='avg',
+                input_shape=(224, 224, 3)
+            )
+            print("  ✅ Loaded MobileNetV2 feature extractor")
         
         if cat_dog_models:
             print(f"✅ Loaded custom models: {list(cat_dog_models.keys())}\n")
@@ -150,6 +175,30 @@ def prepare_image_for_catdog(img_bytes, img_size=(128, 128)):
     
     img = cv2.resize(img, img_size)
     return img / 255.0
+
+def extract_deep_features(img_bytes):
+    """Extract MobileNetV2 deep features for enhanced models"""
+    # Load and preprocess image
+    img = Image.open(BytesIO(img_bytes)).convert('RGB')
+    img = img.resize((224, 224))
+    img_array = keras_image.img_to_array(img)
+    img_array = np.expand_dims(img_array, axis=0)
+    img_preprocessed = mobilenet_preprocess(img_array)
+    
+    # Extract features using MobileNetV2
+    if 'feature_extractor' in cat_dog_models:
+        features = cat_dog_models['feature_extractor'].predict(img_preprocessed, verbose=0)
+        return features
+    else:
+        # Fallback: create feature extractor on the fly
+        feature_extractor = MobileNetV2(
+            weights='imagenet',
+            include_top=False,
+            pooling='avg',
+            input_shape=(224, 224, 3)
+        )
+        features = feature_extractor.predict(img_preprocessed, verbose=0)
+        return features
 
 @app.route('/')
 def index():
@@ -189,6 +238,31 @@ def classify_image():
                 'confidence': f"{confidence:.2f}%",
                 'model': 'Transfer Learning (ImageNet Fine-tuned)',
                 'description': 'MobileNetV2 fine-tuned on cat/dog dataset'
+            })
+        
+        # Enhanced Models (Deep Features + ML)
+        if model_type in ['svm_enhanced', 'rf_enhanced'] and model_type in cat_dog_models:
+            # Extract deep features using MobileNetV2
+            features = extract_deep_features(img_bytes)
+            
+            # Predict using the trained model
+            prediction = cat_dog_models[model_type].predict(features)[0]
+            label = 'Dog' if prediction == 1 else 'Cat'
+            
+            # Get probability if available
+            if hasattr(cat_dog_models[model_type], 'predict_proba'):
+                proba = cat_dog_models[model_type].predict_proba(features)[0]
+                confidence = float(max(proba) * 100)
+            else:
+                confidence = 90.0
+            
+            model_name = 'SVM Enhanced' if model_type == 'svm_enhanced' else 'Random Forest Enhanced'
+            
+            return jsonify({
+                'label': label,
+                'confidence': f"{confidence:.2f}%",
+                'model': model_name,
+                'description': f'{model_name} (MobileNetV2 features + ML)'
             })
         
         # Traditional ML models (Cat vs Dog)
@@ -298,23 +372,44 @@ def get_available_models():
             'value': 'transfer_learning',
             'label': 'Transfer Learning (Cat vs Dog)',
             'type': 'custom',
-            'classes': 2
+            'classes': 2,
+            'description': 'Fine-tuned MobileNetV2'
+        })
+    
+    if 'svm_enhanced' in cat_dog_models:
+        models.append({
+            'value': 'svm_enhanced',
+            'label': 'SVM Enhanced (Cat vs Dog)',
+            'type': 'custom',
+            'classes': 2,
+            'description': 'MobileNetV2 features + SVM'
+        })
+    
+    if 'rf_enhanced' in cat_dog_models:
+        models.append({
+            'value': 'rf_enhanced',
+            'label': 'Random Forest Enhanced (Cat vs Dog)',
+            'type': 'custom',
+            'classes': 2,
+            'description': 'MobileNetV2 features + RF'
         })
     
     if 'svm' in cat_dog_models:
         models.append({
             'value': 'svm',
-            'label': 'SVM (Cat vs Dog)',
+            'label': 'SVM Basic (Cat vs Dog)',
             'type': 'custom',
-            'classes': 2
+            'classes': 2,
+            'description': 'Traditional SVM'
         })
     
     if 'random_forest' in cat_dog_models:
         models.append({
             'value': 'random_forest',
-            'label': 'Random Forest (Cat vs Dog)',
+            'label': 'Random Forest Basic (Cat vs Dog)',
             'type': 'custom',
-            'classes': 2
+            'classes': 2,
+            'description': 'Traditional Random Forest'
         })
     
     return jsonify({'models': models})
