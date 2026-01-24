@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Powered Web Scraper</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AI-Powered Web Scraper</h1>
+            <p class="subtitle">Extract, Analyze, and Summarize Web Content</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-button active" onclick="switchTab('url-scrape')">Scrape URL</button>
+            <button class="tab-button" onclick="switchTab('topic-search')">Search & Scrape</button>
+            <button class="tab-button" onclick="switchTab('batch-scrape')">Batch Scrape</button>
+        </div>
+
+        <!-- URL Scrape Tab -->
+        <div id="url-scrape" class="tab-content active">
+            <div class="input-section">
+                <h2>Scrape Single URL</h2>
+                <div class="input-group">
+                    <input type="url" id="url-input" placeholder="https://example.com" class="input-field">
+                    <button onclick="scrapeUrl()" class="btn btn-primary">Scrape & Analyze</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Topic Search Tab -->
+        <div id="topic-search" class="tab-content">
+            <div class="input-section">
+                <h2>Search Web & Scrape</h2>
+                <div class="input-group">
+                    <input type="text" id="topic-input" placeholder="Enter topic (e.g., 'artificial intelligence trends')" class="input-field">
+                    <button onclick="searchAndScrape()" class="btn btn-primary">Search & Scrape</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Batch Scrape Tab -->
+        <div id="batch-scrape" class="tab-content">
+            <div class="input-section">
+                <h2>Batch Scrape Multiple URLs</h2>
+                <textarea id="batch-urls" placeholder="Enter URLs (one per line)&#10;https://example1.com&#10;https://example2.com&#10;https://example3.com" class="textarea-field"></textarea>
+                <button onclick="batchScrape()" class="btn btn-primary">Scrape All</button>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Scraping and analyzing content...</p>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results" class="results-section hidden">
+            <h2>Results</h2>
+            <div id="results-content"></div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
