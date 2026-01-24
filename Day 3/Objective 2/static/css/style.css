@@ -5,15 +5,15 @@
 }
 
 :root {
-    --primary: #5B23FF;
-    --primary-dark: #4a1ccc;
-    --secondary: #008BFF;
-    --accent: #E4FF30;
-    --dark: #362F4F;
-    --background: #f8f9fc;
+    --primary: #000080;
+    --primary-dark: #000066;
+    --secondary: #9E2A3A;
+    --accent: #FF0000;
+    --dark: #3A2525;
+    --background: #f5f5f5;
     --surface: #ffffff;
     --border: #e5e7eb;
-    --text: #362F4F;
+    --text: #3A2525;
     --text-light: #6b7280;
     --success: #10b981;
     --error: #ef4444;
@@ -53,7 +53,7 @@ header h1 {
 
 .subtitle {
     font-size: 1em;
-    color: rgba(255, 255, 255, 0.8);
+    color: rgba(255, 255, 255, 0.85);
     font-weight: 400;
 }
 
@@ -77,7 +77,7 @@ header h1 {
 }
 
 .tab-button:hover {
-    color: var(--primary);
+    color: var(--secondary);
     background: var(--surface);
 }
 
@@ -123,7 +123,7 @@ header h1 {
 .input-field:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    box-shadow: 0 0 0 3px rgba(0, 0, 128, 0.1);
 }
 
 .textarea-field {
@@ -144,7 +144,7 @@ header h1 {
 .textarea-field:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    box-shadow: 0 0 0 3px rgba(0, 0, 128, 0.1);
 }
 
 .btn {
@@ -257,6 +257,7 @@ header h1 {
 
 .result-url:hover {
     text-decoration: underline;
+    color: var(--accent);
 }
 
 .badge {
@@ -354,6 +355,7 @@ header h1 {
 
 .search-result-item:hover {
     border-color: var(--secondary);
+    background: rgba(158, 42, 58, 0.05);
 }
 
 .search-result-title {
@@ -371,6 +373,7 @@ header h1 {
 
 .search-result-link:hover {
     text-decoration: underline;
+    color: var(--accent);
 }
 
 .error-message {
