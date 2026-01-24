@@ -1,8 +1,3 @@
-"""
-High-Accuracy Random Forest: Uses MobileNetV2 for Feature Extraction
-Achieves 90-98% accuracy by combining Deep Learning features with Random Forest logic.
-"""
-
 import os
 import numpy as np
 import cv2
@@ -14,10 +9,9 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Configuration
 DATA_DIR = 'data'
 MODELS_DIR = 'models'
-IMG_SIZE = (224, 224)  # Must match MobileNetV2 input size
+IMG_SIZE = (224, 224)
 
 os.makedirs(MODELS_DIR, exist_ok=True)
 
@@ -26,7 +20,6 @@ def load_dataset():
     print("=" * 60)
     print("📂 Loading Dataset for Hybrid Random Forest")
     print("=" * 60)
-    
     images = []
     labels = []
     categories = {'cats': 0, 'dogs': 1}
@@ -76,8 +69,6 @@ def extract_features(images):
     """
     print("🧠 Extracting Deep Features using MobileNetV2...")
     print("-" * 60)
-    
-    # Load MobileNetV2 without the top layer (classifier), using Average Pooling
     print("  📦 Loading MobileNetV2 feature extractor...")
     model = MobileNetV2(
         weights='imagenet',
@@ -85,12 +76,8 @@ def extract_features(images):
         pooling='avg',
         input_shape=(224, 224, 3)
     )
-    
-    # Preprocess images exactly as MobileNet expects
     print("  🔧 Preprocessing images...")
     processed_images = preprocess_input(images.astype(np.float32))
-    
-    # Extract features (Get the internal representation of the images)
     print("  ⚙️  Extracting features (this may take a moment)...")
     features = model.predict(processed_images, batch_size=32, verbose=1)
     
@@ -125,10 +112,8 @@ def main():
     if X_images is None:
         return
 
-    # 2. Extract Features (The Secret Sauce for 90%+ Accuracy)
     X_features = extract_features(X_images)
 
-    # 3. Split Data
     print("📊 Splitting data...")
     X_train, X_test, y_train, y_test = train_test_split(
         X_features, y, test_size=0.2, random_state=42, stratify=y
@@ -136,13 +121,10 @@ def main():
     print(f"   Training samples: {len(X_train)}")
     print(f"   Testing samples: {len(X_test)}\n")
 
-    # 4. Train Random Forest
     print("=" * 60)
     print("🌲 Training Random Forest on Deep Features")
     print("=" * 60)
     print(f"  🌳 Building forest with 200 trees...")
-    
-    # We can use more trees now because the data is cleaner
     rf_model = RandomForestClassifier(
         n_estimators=200,
         max_depth=20,
@@ -156,7 +138,6 @@ def main():
     rf_model.fit(X_train, y_train)
     print("  ✅ Training complete!\n")
     
-    # 5. Evaluate
     print("=" * 60)
     print("📊 Evaluating Model Performance")
     print("=" * 60)
@@ -181,7 +162,6 @@ def main():
     cm_path = os.path.join(MODELS_DIR, 'rf_confusion_matrix.png')
     plot_confusion_matrix(y_test, test_preds, cm_path)
 
-    # 6. Save Model
     print("\n💾 Saving model...")
     save_path = os.path.join(MODELS_DIR, 'catdog_rf_enhanced.joblib')
     joblib.dump(rf_model, save_path)

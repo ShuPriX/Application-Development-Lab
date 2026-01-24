@@ -1,8 +1,3 @@
-"""
-High-Accuracy SVM: Uses MobileNetV2 for Feature Extraction
-Achieves 92-99% accuracy by combining Deep Learning features with SVM.
-"""
-
 import os
 import numpy as np
 import cv2
@@ -14,10 +9,10 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Configuration
+
 DATA_DIR = 'data'
 MODELS_DIR = 'models'
-IMG_SIZE = (224, 224)  # Must match MobileNetV2 input size
+IMG_SIZE = (224, 224)  
 
 os.makedirs(MODELS_DIR, exist_ok=True)
 
@@ -72,7 +67,6 @@ def load_dataset():
 def extract_features(images):
     """
     Use MobileNetV2 to extract 'Deep Features' instead of raw pixels.
-    This converts an image into a list of 1280 meaningful numbers describing shapes/textures.
     """
     print("🧠 Extracting Deep Features using MobileNetV2...")
     print("-" * 60)
@@ -90,7 +84,7 @@ def extract_features(images):
     print("  🔧 Preprocessing images...")
     processed_images = preprocess_input(images.astype(np.float32))
     
-    # Extract features (Get the internal representation of the images)
+    # Extract features
     print("  ⚙️  Extracting features (this may take a moment)...")
     features = model.predict(processed_images, batch_size=32, verbose=1)
     
@@ -100,7 +94,7 @@ def extract_features(images):
     return features
 
 def plot_confusion_matrix(y_true, y_pred, save_path):
-    """Plot and save confusion matrix"""
+    """Plotting and saving the confusion matrix"""
     cm = confusion_matrix(y_true, y_pred)
     plt.figure(figsize=(8, 6))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Greens', 
@@ -125,7 +119,7 @@ def main():
     if X_images is None:
         return
 
-    # 2. Extract Features (The Key to High Accuracy)
+    # 2. Extract Features (For High Accuracy)
     X_features = extract_features(X_images)
 
     # 3. Split Data
@@ -141,13 +135,12 @@ def main():
     print("🎯 Training Support Vector Machine")
     print("=" * 60)
     
-    # Option 1: Quick Training (Recommended for most cases)
     print("  ⚙️  Training SVM with RBF kernel...")
     svm_model = SVC(
         kernel='rbf',
         C=10,
         gamma='scale',
-        probability=True,  # Enable probability estimates
+        probability=True,  
         random_state=42,
         verbose=True
     )
@@ -182,7 +175,6 @@ def main():
     print(f"     Best CV score: {grid_search.best_score_*100:.2f}%\n")
     """
     
-    # 5. Evaluate
     print("=" * 60)
     print("📊 Evaluating Model Performance")
     print("=" * 60)

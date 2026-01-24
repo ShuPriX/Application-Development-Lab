@@ -29,12 +29,9 @@ from PIL import Image
 app = Flask(__name__, static_folder='static')
 CORS(app)
 
-# Configuration
 MODELS_FOLDER = 'models'
 os.makedirs(MODELS_FOLDER, exist_ok=True)
 
-# --- EXPERIMENT 1: CLASSIFICATION ---
-# ImageNet Pre-trained Models
 imagenet_models = {}
 cat_dog_models = {}
 
