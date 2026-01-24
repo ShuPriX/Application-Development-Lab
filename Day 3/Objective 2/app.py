@@ -1,35 +1,42 @@
 from flask import Flask, render_template, request, jsonify
 import requests
 from bs4 import BeautifulSoup
-import json
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 import time
 from datetime import datetime
 
 app = Flask(__name__)
 
+# --- Configuration & Helpers ---
+PALETTE = {
+    'darkest': '#061E29',
+    'dark_blue': '#1D546D',
+    'teal': '#5F9598',
+    'light': '#F3F4F4'
+}
+
 class WebScraper:
     def __init__(self):
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
     
     def scrape_url(self, url):
-        """Scrape a single URL and extract structured data"""
+        """Scrape a single URL and extract structured data."""
         try:
-            response = requests.get(url, headers=self.headers, timeout=10)
+            response = requests.get(url, headers=self.headers, timeout=15)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'lxml')
             
-            # Remove script and style elements
-            for script in soup(["script", "style", "nav", "footer"]):
-                script.decompose()
+            # Clean up DOM
+            for tag in soup(["script", "style", "nav", "footer", "iframe", "noscript"]):
+                tag.decompose()
             
-            # Extract data
+            # Extract
             data = {
                 'url': url,
-                'title': soup.title.string if soup.title else 'No title',
+                'title': soup.title.string.strip() if soup.title else 'No Title Found',
                 'headings': self._extract_headings(soup),
                 'paragraphs': self._extract_paragraphs(soup),
                 'links': self._extract_links(soup, url),
@@ -45,308 +52,139 @@ class WebScraper:
             return {'success': False, 'error': str(e)}
     
     def _extract_headings(self, soup):
-        """Extract all headings"""
         headings = {}
-        for i in range(1, 7):
-            h_tags = soup.find_all(f'h{i}')
-            if h_tags:
-                headings[f'h{i}'] = [tag.get_text(strip=True) for tag in h_tags]
+        for i in range(1, 4): # H1 to H3 is usually enough for summaries
+            tags = soup.find_all(f'h{i}')
+            if tags:
+                headings[f'h{i}'] = [t.get_text(strip=True) for t in tags if t.get_text(strip=True)]
         return headings
     
     def _extract_paragraphs(self, soup):
-        """Extract paragraphs"""
-        paragraphs = soup.find_all('p')
-        return [p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)]
+        return [p.get_text(strip=True) for p in soup.find_all('p') if len(p.get_text(strip=True)) > 40]
     
     def _extract_links(self, soup, base_url):
-        """Extract all links"""
         links = []
         for link in soup.find_all('a', href=True):
             href = link['href']
-            full_url = urljoin(base_url, href)
-            links.append({
-                'text': link.get_text(strip=True),
-                'url': full_url
-            })
-        return links[:50]  # Limit to 50 links
+            if href.startswith('http') or href.startswith('/'):
+                full_url = urljoin(base_url, href)
+                links.append({'text': link.get_text(strip=True)[:50], 'url': full_url})
+        return links[:20] 
     
     def _extract_images(self, soup, base_url):
-        """Extract image URLs"""
         images = []
         for img in soup.find_all('img', src=True):
             src = urljoin(base_url, img['src'])
-            images.append({
-                'src': src,
-                'alt': img.get('alt', 'No alt text')
-            })
-        return images[:20]  # Limit to 20 images
+            images.append({'src': src, 'alt': img.get('alt', '')})
+        return images[:10]
     
     def _get_meta_description(self, soup):
-        """Extract meta description"""
         meta = soup.find('meta', attrs={'name': 'description'})
-        if meta and meta.get('content'):
-            return meta['content']
-        return 'No description'
-    
-    def search_and_scrape(self, topic):
-        """Search for a topic using DuckDuckGo and scrape results"""
-        try:
-            # Try multiple search strategies
-            results = []
-            
-            # Strategy 1: Use DuckDuckGo Lite
-            try:
-                search_url = f"https://lite.duckduckgo.com/lite/?q={requests.utils.quote(topic)}"
-                response = requests.get(search_url, headers=self.headers, timeout=10)
-                soup = BeautifulSoup(response.content, 'lxml')
-                
-                # Find result tables in DuckDuckGo Lite
-                result_tables = soup.find_all('table')
-                for table in result_tables:
-                    links = table.find_all('a', href=True)
-                    for link in links:
-                        href = link.get('href', '')
-                        text = link.get_text(strip=True)
-                        
-                        # Filter valid results
-                        if (href.startswith('http') and 
-                            'duckduckgo.com' not in href.lower() and
-                            len(text) > 15 and
-                            href not in [r['url'] for r in results]):
-                            
-                            results.append({
-                                'title': text[:150],  # Limit title length
-                                'url': href
-                            })
-                            
-                            if len(results) >= 5:
-                                break
-                    
-                    if len(results) >= 5:
-                        break
-            except Exception as e:
-                print(f"Lite search failed: {e}")
-            
-            # Strategy 2: If no results, try HTML version
-            if not results:
-                try:
-                    search_url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(topic)}"
-                    response = requests.get(search_url, headers=self.headers, timeout=10)
-                    soup = BeautifulSoup(response.content, 'lxml')
-                    
-                    # Look for result links
-                    for link in soup.find_all('a', class_='result__a'):
-                        href = link.get('href', '')
-                        text = link.get_text(strip=True)
-                        
-                        if href and text and len(text) > 10:
-                            results.append({
-                                'title': text[:150],
-                                'url': href
-                            })
-                            
-                            if len(results) >= 5:
-                                break
-                except Exception as e:
-                    print(f"HTML search failed: {e}")
-            
-            # Strategy 3: Fallback - provide sample educational results
-            if not results:
-                # Create informative fallback results related to the topic
-                results = [
-                    {
-                        'title': f'Search for "{topic}" on Wikipedia',
-                        'url': f'https://en.wikipedia.org/wiki/Special:Search?search={requests.utils.quote(topic)}'
-                    },
-                    {
-                        'title': f'Search for "{topic}" on GitHub',
-                        'url': f'https://github.com/search?q={requests.utils.quote(topic)}'
-                    },
-                    {
-                        'title': f'Search for "{topic}" on Stack Overflow',
-                        'url': f'https://stackoverflow.com/search?q={requests.utils.quote(topic)}'
-                    },
-                    {
-                        'title': f'Search for "{topic}" on Reddit',
-                        'url': f'https://www.reddit.com/search/?q={requests.utils.quote(topic)}'
-                    },
-                    {
-                        'title': f'Google Search for "{topic}"',
-                        'url': f'https://www.google.com/search?q={requests.utils.quote(topic)}'
-                    }
-                ]
-            
-            return {'success': True, 'results': results}
-        
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
+        return meta['content'] if meta and meta.get('content') else 'No description available.'
 
+    def search_and_scrape(self, topic):
+        """Mock search functionality using a fallback strategy."""
+        # Note: Real Google/DuckDuckGo search often requires an API key or complex scraping.
+        # This implementation returns simulated "search results" that link to real robust sites 
+        # to demonstrate the UI flow, as direct search scraping is brittle.
+        
+        simulated_results = [
+            {'title': f'Wikipedia: {topic}', 'url': f'https://en.wikipedia.org/wiki/{topic.replace(" ", "_")}'},
+            {'title': f'News about {topic}', 'url': f'https://www.google.com/search?q={topic}'},
+            {'title': f'Reddit Discussion: {topic}', 'url': f'https://www.reddit.com/search/?q={topic}'},
+            {'title': f'Medium Articles: {topic}', 'url': f'https://medium.com/search?q={topic}'},
+            {'title': f'Quora Questions: {topic}', 'url': f'https://www.quora.com/search?q={topic}'},
+            {'title': f'Twitter/X Trends: {topic}', 'url': f'https://twitter.com/search?q={topic}'},
+            {'title': f'YouTube Videos: {topic}', 'url': f'https://www.youtube.com/results?search_query={topic}'},
+            {'title': f'StackOverflow: {topic}', 'url': f'https://stackoverflow.com/search?q={topic}'},
+            {'title': f'Google Scholar: {topic}', 'url': f'https://scholar.google.com/scholar?q={topic}'},
+            {'title': f'Bing Search: {topic}', 'url': f'https://www.bing.com/search?q={topic}'}
+        ]
+        return {'success': True, 'results': simulated_results}
 
 class LLMProcessor:
-    """Process scraped content with LLM-style summarization"""
-    
-    def summarize_content(self, scraped_data):
-        """Generate a structured summary of scraped content"""
-        try:
-            text_content = scraped_data.get('text_content', '')
-            headings = scraped_data.get('headings', {})
-            paragraphs = scraped_data.get('paragraphs', [])
-            
-            # Create a structured summary
-            summary = {
-                'title': scraped_data.get('title', 'Untitled'),
-                'url': scraped_data.get('url', ''),
-                'key_points': self._extract_key_points(paragraphs),
-                'main_topics': self._extract_topics(headings),
-                'content_structure': self._analyze_structure(headings),
-                'word_count': len(text_content.split()),
-                'summary_text': self._generate_summary(paragraphs, headings)
+    def summarize_content(self, data):
+        """Simple rule-based summarizer (Mock LLM)."""
+        text = data.get('text_content', '')
+        paras = data.get('paragraphs', [])
+        
+        # Calculate approximate reading time
+        word_count = len(text.split())
+        read_time = max(1, round(word_count / 200))
+        
+        # Create a "summary" from the first few substantial paragraphs
+        summary_text = " ".join(paras[:2]) if paras else "No content substantial enough to summarize."
+        
+        return {
+            'title': data.get('title'),
+            'summary_text': summary_text[:500] + "...",
+            'key_points': paras[:3],
+            'stats': {
+                'words': word_count,
+                'read_time_min': read_time
             }
-            
-            return summary
-        
-        except Exception as e:
-            return {'error': str(e)}
-    
-    def _extract_key_points(self, paragraphs):
-        """Extract key points from paragraphs"""
-        key_points = []
-        for i, para in enumerate(paragraphs[:5]):  # First 5 paragraphs
-            if len(para) > 50:  # Only substantial paragraphs
-                # Take first sentence or truncate
-                sentences = para.split('.')
-                key_point = sentences[0][:200] + ('...' if len(sentences[0]) > 200 else '')
-                key_points.append(key_point)
-        return key_points
-    
-    def _extract_topics(self, headings):
-        """Extract main topics from headings"""
-        topics = []
-        for level, heading_list in headings.items():
-            topics.extend(heading_list[:3])  # Top 3 per level
-        return topics[:10]
-    
-    def _analyze_structure(self, headings):
-        """Analyze content structure"""
-        structure = {}
-        for level, heading_list in headings.items():
-            structure[level] = len(heading_list)
-        return structure
-    
-    def _generate_summary(self, paragraphs, headings):
-        """Generate a concise summary"""
-        # Get first meaningful paragraph
-        first_para = next((p for p in paragraphs if len(p) > 100), '')
-        
-        # Get main headings
-        main_headings = headings.get('h1', []) + headings.get('h2', [])
-        
-        summary_parts = []
-        
-        if main_headings:
-            summary_parts.append(f"Main topics include: {', '.join(main_headings[:3])}")
-        
-        if first_para:
-            summary_parts.append(first_para[:300] + ('...' if len(first_para) > 300 else ''))
-        
-        return ' '.join(summary_parts)
-    
-    def compare_content(self, scraped_data_list):
-        """Compare multiple scraped pages"""
-        comparison = {
-            'total_pages': len(scraped_data_list),
-            'avg_word_count': 0,
-            'common_topics': [],
-            'unique_insights': []
         }
-        
-        if scraped_data_list:
-            total_words = sum(len(data.get('text_content', '').split()) 
-                            for data in scraped_data_list)
-            comparison['avg_word_count'] = total_words // len(scraped_data_list)
-        
-        return comparison
+    
+    def compare_content(self, results_list):
+        return {
+            'total_processed': len(results_list),
+            'avg_length': sum(len(r.get('text_content', '')) for r in results_list) // max(1, len(results_list))
+        }
 
-
-# Initialize scraper and processor
 scraper = WebScraper()
-llm_processor = LLMProcessor()
+processor = LLMProcessor()
 
+# --- Routes ---
 
 @app.route('/')
 def index():
-    """Render the main page"""
     return render_template('index.html')
-
 
 @app.route('/api/scrape', methods=['POST'])
 def scrape():
-    """API endpoint to scrape a URL"""
-    data = request.json
-    url = data.get('url')
+    url = request.json.get('url')
+    if not url: return jsonify({'success': False, 'error': 'URL required'})
     
-    if not url:
-        return jsonify({'success': False, 'error': 'URL is required'})
-    
-    # Scrape the URL
     result = scraper.scrape_url(url)
-    
     if result['success']:
-        # Process with LLM
-        summary = llm_processor.summarize_content(result['data'])
-        result['summary'] = summary
-    
+        result['summary'] = processor.summarize_content(result['data'])
     return jsonify(result)
-
 
 @app.route('/api/search-scrape', methods=['POST'])
 def search_scrape():
-    """API endpoint to search for a topic and scrape results"""
-    data = request.json
-    topic = data.get('topic')
+    topic = request.json.get('topic')
+    if not topic: return jsonify({'success': False, 'error': 'Topic required'})
     
-    if not topic:
-        return jsonify({'success': False, 'error': 'Topic is required'})
+    # 1. Get Search Results
+    search_res = scraper.search_and_scrape(topic)
     
-    # Search for the topic
-    search_result = scraper.search_and_scrape(topic)
-    
-    if search_result['success']:
-        # Optionally scrape the first result
-        if search_result['results']:
-            first_url = search_result['results'][0]['url']
-            scrape_result = scraper.scrape_url(first_url)
+    # 2. Auto-scrape the first valid Wiki result for demonstration
+    if search_res['results']:
+        target_url = search_res['results'][0]['url']
+        scrape_res = scraper.scrape_url(target_url)
+        if scrape_res['success']:
+            search_res['scraped_data'] = scrape_res['data']
+            search_res['summary'] = processor.summarize_content(scrape_res['data'])
             
-            if scrape_result['success']:
-                search_result['scraped_data'] = scrape_result['data']
-                search_result['summary'] = llm_processor.summarize_content(scrape_result['data'])
-    
-    return jsonify(search_result)
-
+    return jsonify(search_res)
 
 @app.route('/api/batch-scrape', methods=['POST'])
 def batch_scrape():
-    """API endpoint to scrape multiple URLs"""
-    data = request.json
-    urls = data.get('urls', [])
-    
-    if not urls:
-        return jsonify({'success': False, 'error': 'URLs list is required'})
-    
+    urls = request.json.get('urls', [])
     results = []
-    for url in urls[:5]:  # Limit to 5 URLs
-        result = scraper.scrape_url(url)
-        if result['success']:
-            result['summary'] = llm_processor.summarize_content(result['data'])
-        results.append(result)
-        time.sleep(1)  # Be respectful with delays
     
+    for url in urls[:5]: # Limit to 5
+        res = scraper.scrape_url(url)
+        if res['success']:
+            res['summary'] = processor.summarize_content(res['data'])
+        results.append(res)
+        time.sleep(0.5)
+        
     return jsonify({
-        'success': True,
+        'success': True, 
         'results': results,
-        'comparison': llm_processor.compare_content([r['data'] for r in results if r['success']])
+        'comparison': processor.compare_content([r['data'] for r in results if r['success']])
     })
 
-
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, port=5000)

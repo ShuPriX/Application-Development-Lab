@@ -3,66 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI-Powered Web Scraper</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>Scraper | Minimal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>AI-Powered Web Scraper</h1>
-            <p class="subtitle">Extract, Analyze, and Summarize Web Content</p>
-        </header>
+    
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="logo-circle"></div>
+                <h1>Scraper</h1>
+            </div>
+            
+            <nav class="nav-menu">
+                <button class="nav-item active" onclick="switchTab('url-scrape')">
+                    Single URL
+                </button>
+                <button class="nav-item" onclick="switchTab('topic-search')">
+                    Topic Search
+                </button>
+                <button class="nav-item" onclick="switchTab('batch-scrape')">
+                    Batch Process
+                </button>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <p>AI Powered v2.0</p>
+            </div>
+        </aside>
 
-        <div class="tabs">
-            <button class="tab-button active" onclick="switchTab('url-scrape')">Scrape URL</button>
-            <button class="tab-button" onclick="switchTab('topic-search')">Search & Scrape</button>
-            <button class="tab-button" onclick="switchTab('batch-scrape')">Batch Scrape</button>
-        </div>
-
-        <!-- URL Scrape Tab -->
-        <div id="url-scrape" class="tab-content active">
-            <div class="input-section">
-                <h2>Scrape Single URL</h2>
-                <div class="input-group">
-                    <input type="url" id="url-input" placeholder="https://example.com" class="input-field">
-                    <button onclick="scrapeUrl()" class="btn btn-primary">Scrape & Analyze</button>
+        <main class="main-content">
+            <!-- URL Tab -->
+            <div id="url-scrape" class="view-section active">
+                <header class="section-header">
+                    <h2>Analyze URL</h2>
+                    <p>Extract and summarize content from a single webpage.</p>
+                </header>
+                
+                <div class="input-card">
+                    <input type="url" id="url-input" placeholder="Paste URL here (e.g., https://example.com)...">
+                    <button onclick="scrapeUrl()" class="btn-primary">Analyze</button>
                 </div>
             </div>
-        </div>
 
-        <!-- Topic Search Tab -->
-        <div id="topic-search" class="tab-content">
-            <div class="input-section">
-                <h2>Search Web & Scrape</h2>
-                <div class="input-group">
-                    <input type="text" id="topic-input" placeholder="Enter topic (e.g., 'artificial intelligence trends')" class="input-field">
-                    <button onclick="searchAndScrape()" class="btn btn-primary">Search & Scrape</button>
+            <!-- Search Tab -->
+            <div id="topic-search" class="view-section">
+                <header class="section-header">
+                    <h2>Topic Research</h2>
+                    <p>Search the web and aggregate findings.</p>
+                </header>
+                
+                <div class="input-card">
+                    <input type="text" id="topic-input" placeholder="Enter topic (e.g., Climate Change)...">
+                    <button onclick="searchAndScrape()" class="btn-primary">Research</button>
                 </div>
             </div>
-        </div>
 
-        <!-- Batch Scrape Tab -->
-        <div id="batch-scrape" class="tab-content">
-            <div class="input-section">
-                <h2>Batch Scrape Multiple URLs</h2>
-                <textarea id="batch-urls" placeholder="Enter URLs (one per line)&#10;https://example1.com&#10;https://example2.com&#10;https://example3.com" class="textarea-field"></textarea>
-                <button onclick="batchScrape()" class="btn btn-primary">Scrape All</button>
+            <!-- Batch Tab -->
+            <div id="batch-scrape" class="view-section">
+                <header class="section-header">
+                    <h2>Batch Processing</h2>
+                    <p>Analyze multiple URLs simultaneously.</p>
+                </header>
+                
+                <div class="input-card">
+                    <textarea id="batch-urls" placeholder="Paste URLs (one per line)..."></textarea>
+                    <button onclick="batchScrape()" class="btn-primary">Process All</button>
+                </div>
             </div>
-        </div>
 
-        <!-- Loading Indicator -->
-        <div id="loading" class="loading hidden">
-            <div class="spinner"></div>
-            <p>Scraping and analyzing content...</p>
-        </div>
+            <!-- Output Area -->
+            <div id="loading" class="loading-state hidden">
+                <div class="spinner"></div>
+                <span>Processing data...</span>
+            </div>
 
-        <!-- Results Section -->
-        <div id="results" class="results-section hidden">
-            <h2>Results</h2>
-            <div id="results-content"></div>
-        </div>
+            <div id="results" class="results-container hidden">
+                <!-- Content injected by JS -->
+            </div>
+        </main>
     </div>
 
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
