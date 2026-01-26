@@ -1,229 +1,194 @@
-from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS
 import os
-from werkzeug.utils import secure_filename
-import shutil
-from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.llms.ollama import Ollama
-import nest_asyncio
-from pathlib import Path
-import json
+import sys
+import time
 
-nest_asyncio.apply()
+# --- DIAGNOSTIC CHECK ---
+try:
+    import langchain_core
+    import langchain_community
+    import langchain_ollama
+    # We attempt to import the raw ollama library to list models
+    import ollama
+    print("✅ Core LangChain and Ollama libraries imported successfully")
+except ImportError as e:
+    print(f"\n❌ ERROR: Missing libraries. Details: {e}")
+
+from flask import Flask, render_template, request, jsonify
+from werkzeug.utils import secure_filename
+
+from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
+import pandas as pd
+
+from langchain_ollama import OllamaLLM, OllamaEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
+
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
 
 app = Flask(__name__)
-CORS(app)
 
 # Configuration
 UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'pdf', 'docx', 'doc', 'xlsx', 'xls', 'txt', 'csv'}
-MAX_FILE_SIZE = 16 * 1024 * 1024  # 16MB
+VECTOR_DB_FOLDER = 'vector_db'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(VECTOR_DB_FOLDER, exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 
-# Create upload folder if it doesn't exist
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# Global variable to store the Chain
+qa_chain = None
 
-# Global variables for index and query engine
-current_index = None
-current_query_engine = None
-current_documents = []
-
-# Available LLM models
-AVAILABLE_MODELS = {
-    'ollama': [
-        {'id': 'gemma3:12b', 'name': 'Gemma 3 (12B)', 'provider': 'ollama'},
-        {'id': 'llama3.2', 'name': 'Llama 3.2 (3B)', 'provider': 'ollama'},
-        {'id': 'llama3.2:1b', 'name': 'Llama 3.2 (1B)', 'provider': 'ollama'},
-        {'id': 'gemma2:2b', 'name': 'Gemma 2 (2B)', 'provider': 'ollama'},
-        {'id': 'gemma2:9b', 'name': 'Gemma 2 (9B)', 'provider': 'ollama'},
-        {'id': 'phi3:mini', 'name': 'Phi 3 Mini', 'provider': 'ollama'},
-        {'id': 'mistral:7b', 'name': 'Mistral 7B', 'provider': 'ollama'},
-    ]
-}
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def initialize_embeddings():
-    """Initialize the embedding model"""
-    embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en-v1.5")
-    Settings.embed_model = embed_model
-    return embed_model
-
-def initialize_llm(model_id, provider, api_key=None):
-    """Initialize the LLM based on provider and model"""
-    if provider == 'ollama':
-        llm = Ollama(model=model_id, request_timeout=120.0)
-    else:
-        raise ValueError(f"Unknown provider: {provider}")
-    
-    Settings.llm = llm
-    return llm
-
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    """Health check endpoint"""
-    return jsonify({'status': 'healthy', 'message': 'RAG API is running'})
-
-@app.route('/api/models', methods=['GET'])
-def get_models():
-    """Get available LLM models"""
-    return jsonify({
-        'models': AVAILABLE_MODELS,
-        'success': True
-    })
-
-@app.route('/api/upload', methods=['POST'])
-def upload_file():
-    """Upload and process document files"""
-    global current_index, current_documents
-    
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part', 'success': False}), 400
-    
-    file = request.files['file']
-    
-    if file.filename == '':
-        return jsonify({'error': 'No selected file', 'success': False}), 400
-    
-    if not allowed_file(file.filename):
-        return jsonify({
-            'error': f'File type not allowed. Allowed types: {", ".join(ALLOWED_EXTENSIONS)}',
-            'success': False
-        }), 400
-    
+def get_available_models():
+    """Helper to list models currently available in Ollama."""
     try:
-        # Clear previous uploads
-        for filename in os.listdir(UPLOAD_FOLDER):
-            file_path = os.path.join(UPLOAD_FOLDER, filename)
-            if os.path.isfile(file_path):
-                os.unlink(file_path)
-        
-        # Save new file
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-        
-        # Load and index documents
-        embed_model = initialize_embeddings()
-        documents = SimpleDirectoryReader(input_dir=UPLOAD_FOLDER).load_data()
-        current_documents = documents
-        
-        # Create vector index
-        current_index = VectorStoreIndex.from_documents(
-            documents,
-            embed_model=embed_model
-        )
-        
-        return jsonify({
-            'success': True,
-            'message': f'File "{filename}" uploaded and indexed successfully',
-            'filename': filename,
-            'num_documents': len(documents)
-        })
-    
+        models_info = ollama.list()
+        # 'models' key contains a list of dicts, we want the 'name' field
+        return [m['name'] for m in models_info.get('models', [])]
     except Exception as e:
-        return jsonify({
-            'error': str(e),
-            'success': False
-        }), 500
+        print(f"⚠️ Could not list Ollama models: {e}")
+        return []
 
-@app.route('/api/query', methods=['POST'])
-def query_documents():
-    """Query the indexed documents"""
-    global current_index, current_query_engine
-    
-    if current_index is None:
-        return jsonify({
-            'error': 'No documents uploaded. Please upload a document first.',
-            'success': False
-        }), 400
-    
-    data = request.json
-    query_text = data.get('query', '').strip()
-    model_id = data.get('model_id', 'llama3.2')
-    provider = data.get('provider', 'ollama')
-    api_key = data.get('api_key', '')
-    
-    if not query_text:
-        return jsonify({
-            'error': 'Query text is required',
-            'success': False
-        }), 400
-    
+def load_document(file_path):
+    """Detect file type and load content."""
     try:
-        # Initialize LLM
-        llm = initialize_llm(model_id, provider, api_key if api_key else None)
-        
-        # Create or update query engine
-        current_query_engine = current_index.as_query_engine(llm=llm)
-        
-        # Execute query
-        response = current_query_engine.query(query_text)
-        
-        # Extract source information
-        source_nodes = []
-        if hasattr(response, 'source_nodes'):
-            for node in response.source_nodes[:3]:  # Top 3 sources
-                source_nodes.append({
-                    'text': node.node.text[:200] + '...' if len(node.node.text) > 200 else node.node.text,
-                    'score': float(node.score) if hasattr(node, 'score') else None
-                })
-        
-        return jsonify({
-            'success': True,
-            'response': str(response),
-            'sources': source_nodes,
-            'model_used': f"{provider}/{model_id}"
-        })
-    
+        if file_path.endswith('.pdf'):
+            loader = PyPDFLoader(file_path)
+            return loader.load()
+        elif file_path.endswith('.docx'):
+            loader = Docx2txtLoader(file_path)
+            return loader.load()
+        elif file_path.endswith('.xlsx') or file_path.endswith('.xls'):
+            df = pd.read_excel(file_path)
+            text = df.to_string(index=False)
+            return [type('Document', (object,), {'page_content': text, 'metadata': {'source': file_path}})()]
     except Exception as e:
-        return jsonify({
-            'error': str(e),
-            'success': False
-        }), 500
+        print(f"Error loading document: {e}")
+        return []
+    return []
 
-@app.route('/api/clear', methods=['POST'])
-def clear_documents():
-    """Clear uploaded documents and reset index"""
-    global current_index, current_query_engine, current_documents
+def process_document(file_path, model_name):
+    global qa_chain
     
+    # 0. Check available models
+    available = get_available_models()
+    print(f"🔍 Ollama sees these models: {available}")
+    
+    if model_name not in available:
+        print(f"⚠️ Warning: Requested '{model_name}' not found in list. Trying anyway (Ollama might auto-pull or match fuzzy).")
+
+    # 1. Load and Split Document
+    docs = load_document(file_path)
+    if not docs:
+        raise ValueError("Could not read document content.")
+        
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    splits = text_splitter.split_documents(docs)
+    
+    # 2. Create Embeddings with Fallback
+    print(f"Attempting to generate embeddings with: {model_name}")
+    
+    embeddings = None
+    
+    # Try the requested model first
     try:
-        # Clear uploaded files
-        for filename in os.listdir(UPLOAD_FOLDER):
-            file_path = os.path.join(UPLOAD_FOLDER, filename)
-            if os.path.isfile(file_path):
-                os.unlink(file_path)
-        
-        # Reset global variables
-        current_index = None
-        current_query_engine = None
-        current_documents = []
-        
-        return jsonify({
-            'success': True,
-            'message': 'All documents cleared successfully'
-        })
-    
+        test_embeddings = OllamaEmbeddings(model=model_name)
+        # Test a single query to ensure it works before processing the whole doc
+        test_embeddings.embed_query("test connection")
+        embeddings = test_embeddings
+        print(f"✅ Embedding success with {model_name}")
     except Exception as e:
-        return jsonify({
-            'error': str(e),
-            'success': False
-        }), 500
+        print(f"❌ Failed to use {model_name} for embeddings: {e}")
+        
+        # Fallback Strategy: Try standard stable models
+        fallbacks = ["llama3.2:latest", "llama3.2", "llama3"]
+        for fb in fallbacks:
+            if fb in available or fb == "llama3.2:latest":
+                print(f"🔄 Attempting fallback to: {fb}")
+                try:
+                    test_embeddings = OllamaEmbeddings(model=fb)
+                    test_embeddings.embed_query("test connection")
+                    embeddings = test_embeddings
+                    print(f"✅ Fallback success with {fb}")
+                    break
+                except:
+                    continue
+    
+    if not embeddings:
+        raise ValueError(f"Could not initialize embeddings with {model_name} or any fallbacks. Please check 'ollama list'.")
+    
+    # Create Vector Store (FAISS)
+    vectorstore = FAISS.from_documents(documents=splits, embedding=embeddings)
+    retriever = vectorstore.as_retriever()
+    
+    # 3. Setup LLM
+    # We use the requested model for generation (even if we used a fallback for embeddings)
+    llm = OllamaLLM(model=model_name)
+    
+    # 4. Create Chain using LCEL
+    template = """Answer the question based only on the following context:
+    
+    {context}
+    
+    Question: {question}
+    
+    Answer:"""
+    
+    prompt = ChatPromptTemplate.from_template(template)
+    
+    qa_chain = (
+        {"context": retriever, "question": RunnablePassthrough()}
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+    
+    print("Chain created successfully using LCEL!")
 
 @app.route('/')
-def serve_frontend():
-    """Serve the frontend"""
-    return send_from_directory('static', 'index.html')
+def index():
+    return render_template('index.html')
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    
+    file = request.files['file']
+    model = request.form.get('model', 'llama3.2:latest')
+    
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+        
+    if file:
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(file_path)
+        
+        try:
+            process_document(file_path, model)
+            return jsonify({"message": f"Processed successfully! Ready to chat."}), 200
+        except Exception as e:
+            print(f"Error details: {e}")
+            return jsonify({"error": str(e)}), 500
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    global qa_chain
+    data = request.json
+    user_query = data.get('query')
+    
+    if not qa_chain:
+        return jsonify({"response": "Please upload a document first."})
+    
+    try:
+        result = qa_chain.invoke(user_query)
+        return jsonify({"response": result})
+    except Exception as e:
+        print(f"Chat Error: {e}")
+        return jsonify({"response": f"Error: {str(e)}"})
 
 if __name__ == '__main__':
-    print("=" * 50)
-    print("RAG Document Query System")
-    print("=" * 50)
-    print("Starting Flask server...")
-    print("Server will be available at: http://localhost:5000")
-    print("=" * 50)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    os.makedirs('templates', exist_ok=True)
+    app.run(debug=True, port=5000)
