@@ -7,7 +7,6 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-# --- Configuration & Helpers ---
 PALETTE = {
     'darkest': '#061E29',
     'dark_blue': '#1D546D',
@@ -22,7 +21,6 @@ class WebScraper:
         }
     
     def scrape_url(self, url):
-        """Scrape a single URL and extract structured data."""
         try:
             response = requests.get(url, headers=self.headers, timeout=15)
             response.raise_for_status()
@@ -53,7 +51,7 @@ class WebScraper:
     
     def _extract_headings(self, soup):
         headings = {}
-        for i in range(1, 4): # H1 to H3 is usually enough for summaries
+        for i in range(1, 4): 
             tags = soup.find_all(f'h{i}')
             if tags:
                 headings[f'h{i}'] = [t.get_text(strip=True) for t in tags if t.get_text(strip=True)]
@@ -83,10 +81,6 @@ class WebScraper:
         return meta['content'] if meta and meta.get('content') else 'No description available.'
 
     def search_and_scrape(self, topic):
-        """Mock search functionality using a fallback strategy."""
-        # Note: Real Google/DuckDuckGo search often requires an API key or complex scraping.
-        # This implementation returns simulated "search results" that link to real robust sites 
-        # to demonstrate the UI flow, as direct search scraping is brittle.
         
         simulated_results = [
             {'title': f'Wikipedia: {topic}', 'url': f'https://en.wikipedia.org/wiki/{topic.replace(" ", "_")}'},
@@ -104,7 +98,7 @@ class WebScraper:
 
 class LLMProcessor:
     def summarize_content(self, data):
-        """Simple rule-based summarizer (Mock LLM)."""
+
         text = data.get('text_content', '')
         paras = data.get('paragraphs', [])
         

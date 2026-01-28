@@ -1,0 +1,60 @@
+:root {
+    /* Light Mode (Default) */
+    --bg-body: #F7F7FB;
+    --bg-panel: #FFFFFF;
+    --bg-input: #FFFFFF;
+    --text-primary: #1A1A1A;
+    --text-secondary: #7e7e7e;
+    --accent: #AC58E9;
+    --border: #ECECF3;
+    --shadow: 0 4px 20px rgba(0,0,0,0.05);
+}
+
+[data-theme="dark"] {
+    /* Dark Mode (Requested Colors) */
+    --bg-body: #000000;
+    --bg-panel: #0A0A0A;
+    --bg-input: #1A1A1A;
+    --text-primary: #FFFFFF;
+    --text-secondary: #aaaaaa;
+    --accent: #AC58E9;
+    --border: #333333;
+    --shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+* { box-sizing: border-box; transition: background 0.3s, color 0.3s; }
+body { margin: 0; font-family: 'Poppins', sans-serif; background: var(--bg-body); color: var(--text-primary); }
+
+/* --- FORMS (Login/Register) --- */
+.split-screen { display: flex; height: 100vh; }
+.left-panel { flex: 1; background: var(--accent); display: flex; align-items: center; justify-content: center; color: white; }
+.right-panel { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 50px; background: var(--bg-panel); }
+
+input {
+    width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary);
+}
+button.primary {
+    width: 100%; padding: 12px; background: var(--accent); color: white;
+    border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
+}
+button.primary:hover { opacity: 0.9; }
+
+/* --- DASHBOARD --- */
+.dashboard { display: flex; height: 100vh; }
+.sidebar { width: 250px; background: var(--bg-panel); padding: 20px; border-right: 1px solid var(--border); }
+.main { flex: 1; padding: 30px; background: var(--bg-body); overflow-y: auto; }
+
+.banner {
+    background: linear-gradient(135deg, #AC58E9, #7A28CB);
+    color: white; padding: 30px; border-radius: 20px; margin-bottom: 30px;
+    display: flex; justify-content: space-between; align-items: center;
+}
+
+.card { background: var(--bg-panel); padding: 20px; border-radius: 15px; box-shadow: var(--shadow); margin-bottom: 20px; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+
+.menu-item { padding: 12px; cursor: pointer; color: var(--text-secondary); border-radius: 8px; margin-bottom: 5px; }
+.menu-item:hover, .menu-item.active { background: var(--accent); color: white; }
+
+.theme-switch { cursor: pointer; padding: 8px; background: var(--border); border-radius: 20px; border: none; color: var(--text-primary); }
