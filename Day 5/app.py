@@ -13,7 +13,7 @@ client = genai.Client(
     http_options={'api_version': 'v1'}
 )
 
-DB_CONFIG = {
+DB_CONFIG ={
     "host": "localhost",
     "user": "admin",
     "password": "Omi9321",
@@ -44,18 +44,16 @@ def ask():
     user_question = data.get('question')
     
     try:
-        # Step 1: SQL Generation
-        # FIXED: Remove 'models/' prefix from model name
         response = client.models.generate_content(
             model='gemini-2.5-flash', 
             contents=f"You are a MariaDB expert. Translate this to SQL: {user_question}. Table: sales (product_name, revenue, country). Return ONLY SQL."
         )
         generated_sql = response.text.strip().replace('```sql', '').replace('```', '')
 
-        # Step 2: DB Query
+        
         db_results = execute_safe_sql(generated_sql)
         
-        # Step 3: Human Summary
+        
         summary_resp = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=f"The user asked '{user_question}' and the database returned {db_results}. Explain this to them briefly."
