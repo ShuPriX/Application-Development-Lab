@@ -1,0 +1,31 @@
+version: "3.3"
+
+services:
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "18500:18500"
+    environment:
+      - TMDB_API_KEY=${TMDB_API_KEY}
+      - CORS_ORIGINS=["http://141.148.219.124:18501"]
+      - DATABASE_URL=sqlite+aiosqlite:///./cineinsight.db
+      - BERT_MODEL_PATH=ml/models/bert_sentiment
+      - BILSTM_MODEL_PATH=ml/models/bilstm_aspect
+    volumes:
+      - backend-data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://141.148.219.124:18500
+    ports:
+      - "18501:18501"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend-data:

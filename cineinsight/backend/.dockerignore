@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.example
+cineinsight.db
+ml/training/
+ml/notebooks/
+ml/models/bert_sentiment/checkpoint-*/
+tests/

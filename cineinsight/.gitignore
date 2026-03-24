@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Build
+frontend/dist/
+*.egg-info/
+
+# Environment
+.env
+.env.production
+backend/.env
+
+# Claude/OpenCode
+.claude/
+
+# Database
+*.db
+*.sqlite3
+
+# ML model weights (too large for git)
+backend/ml/models/*.pt
+backend/ml/models/bert_sentiment/
+backend/ml/models/bilstm_aspect/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
